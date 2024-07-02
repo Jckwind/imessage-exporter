@@ -270,38 +270,13 @@ fn validate_path(
         PathBuf::from(export_path.unwrap_or(&format!("{}/{DEFAULT_OUTPUT_DIR}", home())));
 
     // If there is an export type selected, ensure we do not overwrite files of the same type
-    if let Some(export_type) = export_type {
-        if resolved_path.exists() {
-            // Get the word to use if there is a problem with the specified path
-            let path_word = match export_path {
-                Some(_) => "Specified",
-                None => "Default",
-            };
-
-            // Ensure the directory exists and does not contain files of the same export type
-            match resolved_path.read_dir() {
-                Ok(files) => {
-                    let export_type_extension = export_type.to_string();
-                    for file in files.flatten() {
-                        if file
-                            .path()
-                            .extension()
-                            .is_some_and(|s| s.to_str().unwrap_or("") == export_type_extension)
-                        {
-                            return Err(RuntimeError::InvalidOptions(format!(
-                                "{path_word} export path {resolved_path:?} contains existing \"{export_type}\" export data!"
-                            )));
-                        }
-                    }
-                }
-                Err(why) => {
-                    return Err(RuntimeError::InvalidOptions(format!(
-                        "{path_word} export path {resolved_path:?} is not a valid directory: {why}"
-                    )));
-                }
-            }
+    if let Some(_) = export_type {
+        if !resolved_path.exists() {
+            return Err(RuntimeError::InvalidOptions(format!(
+                "Export path {:?} does not exist", resolved_path
+            )));
         }
-    };
+    }
 
     Ok(resolved_path)
 }
