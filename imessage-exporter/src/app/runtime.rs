@@ -132,15 +132,19 @@ impl Config {
             }
             // Fallback if there is no name set
             None => {
-                if let Some(participants) = self.chatroom_participants.get(&chatroom.rowid) {
-                    self.filename_from_participants(participants)
-                } else {
-                    eprintln!(
-                        "Found error: message chat ID {} has no members!",
-                        chatroom.rowid
-                    );
-                    chatroom.chat_identifier.clone()
-                }
+                chatroom.chat_identifier.clone()
+                // if let Some(chat_identifier) = chatroom.chat_identifier {
+                //     chat_identifier
+                // }
+                // if let Some(participants) = self.chatroom_participants.get(&chatroom.rowid) {
+                //     self.filename_from_participants(participants)
+                // } else {
+                //     eprintln!(
+                //         "Found error: message chat ID {} has no members!",
+                //         chatroom.rowid
+                //     );
+                //     chatroom.chat_identifier.clone()
+                // }
             }
         };
         sanitize_filename(&filename)
