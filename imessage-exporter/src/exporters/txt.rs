@@ -70,7 +70,7 @@ impl<'a> Exporter<'a> for TXT<'a> {
             self.config.options.export_path.display()
         );
 
-        let chat_id = self.config.chat_id;
+        let chat_identifier = &self.config.chat_identifier;
 
         // Keep track of current message ROWID
         let mut current_message_row = -1;
@@ -78,14 +78,14 @@ impl<'a> Exporter<'a> for TXT<'a> {
         // Set up progress bar
         let mut current_message = 0;
         let total_messages =
-            Message::get_count(&self.config.db, &self.config.options.query_context, chat_id)
+            Message::get_count(&self.config.db, &self.config.options.query_context, chat_identifier.clone())
                 .map_err(RuntimeError::DatabaseError)?;
         let pb = build_progress_bar_export(total_messages);
 
         let mut query = Message::stream_rows(
             &self.config.db,
             &self.config.options.query_context,
-            chat_id,
+            chat_identifier.clone(),
         )
         .map_err(RuntimeError::DatabaseError)?;
 

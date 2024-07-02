@@ -54,8 +54,8 @@ pub struct Config {
     pub db: Connection,
     /// Converter type used when converting image files
     pub converter: Option<Converter>,
-    /// Chat ID to export a single conversation
-    pub chat_id: Option<i32>,
+    /// Chat identifier to export a single conversation
+    pub chat_identifier: Option<String>,
 }
 
 impl Config {
@@ -206,12 +206,7 @@ impl Config {
         eprintln!("[4/4] Caching reactions...");
         let reactions = Message::cache(&conn).map_err(RuntimeError::DatabaseError)?;
         eprintln!("Cache built!");
-        let chat_id = options.chat_id;
-        if let Some(chat_id) = chat_id {
-            if !chatrooms.contains_key(&chat_id) {
-                return Err(RuntimeError::ChatIdNotFound(chat_id.to_string()));
-            }
-        }
+        let chat_identifier = options.chat_identifier.clone();
         Ok(Config {
             chatrooms,
             real_chatrooms: ChatToHandle::dedupe(&chatroom_participants),
@@ -223,7 +218,7 @@ impl Config {
             offset: get_offset(),
             db: conn,
             converter: Converter::determine(),
-            chat_id,
+            chat_identifier,
         })
     }
 

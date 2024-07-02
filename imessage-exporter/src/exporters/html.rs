@@ -78,7 +78,7 @@ impl<'a> Exporter<'a> for HTML<'a> {
         // Write orphaned file headers
         HTML::write_headers(&mut self.orphaned)?;
 
-        let chat_id = self.config.chat_id;
+        let chat_identifier = self.config.chat_identifier.clone();
 
         // Keep track of current message ROWID
         let mut current_message_row = -1;
@@ -86,13 +86,13 @@ impl<'a> Exporter<'a> for HTML<'a> {
         // Set up progress bar
         let mut current_message = 0;
         let total_messages =
-            Message::get_count(&self.config.db, &self.config.options.query_context, chat_id)
+            Message::get_count(&self.config.db, &self.config.options.query_context, chat_identifier.clone())
                 .map_err(RuntimeError::DatabaseError)?;
         println!("Total messages: {}", total_messages);
         let pb = build_progress_bar_export(total_messages);
 
         let mut statement =
-            Message::stream_rows(&self.config.db, &self.config.options.query_context, chat_id)
+            Message::stream_rows(&self.config.db, &self.config.options.query_context, chat_identifier.clone())
                 .map_err(RuntimeError::DatabaseError)?;
 
         let messages = statement

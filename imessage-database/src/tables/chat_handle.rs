@@ -27,8 +27,8 @@ impl Table for ChatToHandle {
         })
     }
 
-    fn get(db: &Connection, chat_id: Option<i32>) -> Result<Statement, TableError> {
-        let chat_filter = chat_id.map_or(String::new(), |id| format!("WHERE chat_id = {}", id));
+    fn get(db: &Connection, chat_identifier: Option<String>) -> Result<Statement, TableError> {
+        let chat_filter = chat_identifier.map_or(String::new(), |id| format!("WHERE chat_identifier = '{}'", id));
         db.prepare(&format!("SELECT * FROM {CHAT_HANDLE_JOIN} {chat_filter}"))
             .map_err(TableError::ChatToHandle)
     }

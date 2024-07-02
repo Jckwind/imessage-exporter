@@ -28,9 +28,8 @@ impl Table for Handle {
         })
     }
 
-    fn get(db: &Connection, chat_id: Option<i32>) -> Result<Statement, TableError> {
-        let chat_filter = chat_id.map_or(String::new(), |id| format!("WHERE chat_id = {}", id));
-        db.prepare(&format!("SELECT * from {HANDLE} {chat_filter}"))
+    fn get(db: &Connection, _chat_identifier: Option<String>) -> Result<Statement, TableError> {
+        db.prepare(&format!("SELECT * from {HANDLE}"))
             .map_err(TableError::Handle)
     }
 

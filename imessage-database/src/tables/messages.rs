@@ -122,7 +122,7 @@ pub struct Message {
     pub thread_originator_part: Option<String>,
     /// The date the message was most recently edited
     pub date_edited: i64,
-    /// The [`identifier`](crate::tables::chat::Chat::chat_identifier) of the chat the message belongs to
+    /// The [`id`](crate::tables::chat::Chat::chat_id) of the chat the message belongs to
     pub chat_id: Option<i32>,
     /// The number of attached files included in the message
     pub num_attachments: i32,
@@ -169,36 +169,37 @@ impl Table for Message {
 
     /// Convert data from the messages table to native Rust data structures, falling back to
     /// more compatible queries to ensure compatibility with older database schemas
-    fn get(db: &Connection, chat_id: Option<i32>) -> Result<Statement, TableError> {
-        let chat_filter = chat_id.map_or_else(
+    fn get(db: &Connection, chat_identifier: Option<String>) -> Result<Statement, TableError> {
+        let chat_filter = chat_identifier.map_or_else(
             || String::new(),
-            |id| format!("WHERE c.chat_id = {}", id)
+            |id| format!("WHERE c.chat_identifier = '{}'", id)
         );
-
-        println!("Chat filter: {:?}", chat_filter);
-
         // If the database has `chat_recoverable_message_join`, we can restore some deleted messages.
         // If database has `thread_originator_guid`, we can parse replies, otherwise default to 0
         Ok(db.prepare(&format!(
             // macOS Ventura+ and i0S 16+ schema, interpolated with required columns for performance
             "SELECT
                  {COLS},
-                 c.chat_id,
-                 (SELECT COUNT(*) FROM {MESSAGE_ATTACHMENT_JOIN} a WHERE m.ROWID = a.message_id) as num_attachments,
-                 (SELECT b.chat_id FROM {RECENTLY_DELETED} b WHERE m.ROWID = b.message_id) as deleted_from,
+                 c.ROWID as chat_id,
+                 c.chat_identifier,
+                 (SELECT COUNT(*) FROM {MESSAGE_ATTACHMENT_JOIN} a WHERE message.ROWID = a.message_id) as num_attachments,
+                 (SELECT b.chat_id FROM {RECENTLY_DELETED} b WHERE message.ROWID = b.message_id) as deleted_from,
                  (SELECT COUNT(*) FROM {MESSAGE} m2 WHERE m2.thread_originator_guid = m.guid) as num_replies
-             FROM
-                 message as m
-                 LEFT JOIN {CHAT_MESSAGE_JOIN} as c ON m.ROWID = c.message_id
+            FROM
+                chat_message_join AS cmj
+                JOIN message AS m ON cmj.message_id = m.ROWID
+                INNER JOIN chat AS c ON cmj.chat_id = c.ROWID
+                LEFT JOIN handle ON m.handle_id = handle.ROWID
              {chat_filter}
              ORDER BY
-                 m.date;
+                 m.date DESC;
             "
         )).or(db.prepare(&format!(
             // macOS Big Sur to Monterey, iOS 14 to iOS 15 schema
             "SELECT
                  *,
-                 c.chat_id,
+                 c.ROWID as chat_id,
+                 c.chat_identifier,
                  (SELECT COUNT(*) FROM {MESSAGE_ATTACHMENT_JOIN} a WHERE m.ROWID = a.message_id) as num_attachments,
                  NULL as deleted_from,
                  (SELECT COUNT(*) FROM {MESSAGE} m2 WHERE m2.thread_originator_guid = m.guid) as num_replies
@@ -214,13 +215,16 @@ impl Table for Message {
             // macOS Catalina, iOS 13 and older
             "SELECT
                  *,
-                 c.chat_id,
+                 c.ROWID as chat_id,
+                 c.chat_identifier,
                  (SELECT COUNT(*) FROM {MESSAGE_ATTACHMENT_JOIN} a WHERE m.ROWID = a.message_id) as num_attachments,
                  NULL as deleted_from,
                  0 as num_replies
              FROM
-                 message as m
-                 LEFT JOIN {CHAT_MESSAGE_JOIN} as c ON m.ROWID = c.message_id
+            chat_message_join AS cmj
+                JOIN message AS m ON cmj.message_id = m.ROWID
+                INNER JOIN chat AS c ON cmj.chat_id = c.ROWID
+                LEFT JOIN handle ON m.handle_id = handle.ROWID
              {chat_filter}
              ORDER BY
                  m.date;
@@ -630,17 +634,17 @@ impl Message {
     pub fn get_count(
         db: &Connection,
         context: &QueryContext,
-        chat_id: Option<i32>
+        chat_identifier: Option<String>
     ) -> Result<u64, TableError> {
         let mut statement = if context.has_filters() {
             let mut filters = context.generate_filter_statement("m.date");
-            if let Some(id) = chat_id {
+            if let Some(id) = chat_identifier {
                 if !filters.is_empty() {
                     filters.push_str(" AND ");
                 } else {
                     filters.push_str(" WHERE ");
-            }
-                filters.push_str(&format!("c.chat_id = {}", id));
+                }
+                filters.push_str(&format!("c.chat_identifier = '{}'", id));
             }
             db.prepare(&format!(
                 "SELECT COUNT(*) FROM {MESSAGE} as m LEFT JOIN {CHAT_MESSAGE_JOIN} as c ON m.ROWID = c.message_id {}",
@@ -648,8 +652,8 @@ impl Message {
             ))
             .map_err(TableError::Messages)?
         } else {
-            if let Some(id) = chat_id {
-                db.prepare(&format!("SELECT COUNT(*) FROM {CHAT_MESSAGE_JOIN} WHERE chat_id = {}", id))
+            if let Some(id) = chat_identifier {
+                db.prepare(&format!("SELECT COUNT(*) FROM {CHAT_MESSAGE_JOIN} as cmj INNER JOIN chat AS c ON cmj.chat_id = c.ROWID WHERE c.chat_identifier = '{}'", id))
                     .map_err(TableError::Messages)?
             } else {
                 db.prepare(&format!("SELECT COUNT(*) FROM {MESSAGE}"))
@@ -679,20 +683,20 @@ impl Message {
     pub fn stream_rows<'a>(
         db: &'a Connection,
         context: &'a QueryContext,
-        chat_id: Option<i32>,
+        chat_identifier: Option<String>,
     ) -> Result<Statement<'a>, TableError> {
         if !context.has_filters() {
-            return Self::get(db, chat_id);
+            return Self::get(db, chat_identifier);
         }
 
         let mut filters = context.generate_filter_statement("m.date");
-        if let Some(id) = chat_id {
+        if let Some(id) = chat_identifier {
             if !filters.is_empty() {
                 filters.push_str(" AND ");
             } else {
                 filters.push_str(" WHERE ");
             }
-            filters.push_str(&format!("c.chat_id = {}", id));
+            filters.push_str(&format!("c.chat_identifier = '{}'", id));
         }
 
         println!("Filters: {:?}", filters);
@@ -702,6 +706,7 @@ impl Message {
                 "SELECT
                      *,
                      c.chat_id,
+                     c.chat_identifier,
                      (SELECT COUNT(*) FROM {MESSAGE_ATTACHMENT_JOIN} a WHERE m.ROWID = a.message_id) as num_attachments,
                      (SELECT b.chat_id FROM {RECENTLY_DELETED} b WHERE m.ROWID = b.message_id) as deleted_from,
                      (SELECT COUNT(*) FROM {MESSAGE} m2 WHERE m2.thread_originator_guid = m.guid) as num_replies

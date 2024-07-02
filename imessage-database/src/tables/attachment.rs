@@ -80,7 +80,7 @@ impl Table for Attachment {
         })
     }
 
-    fn get(db: &Connection, _chat_id: Option<i32>) -> Result<Statement, TableError> {
+    fn get(db: &Connection, _chat_identifier: Option<String>) -> Result<Statement, TableError> {
         db.prepare(&format!("SELECT * from {ATTACHMENT}"))
             .map_err(TableError::Attachment)
     }

@@ -32,8 +32,9 @@ impl Table for Chat {
         })
     }
 
-    fn get(db: &Connection, _chat_id: Option<i32>) -> Result<Statement, TableError> {
-        db.prepare(&format!("SELECT * from {CHAT}"))
+    fn get(db: &Connection, chat_identifier: Option<String>) -> Result<Statement, TableError> {
+        let chat_filter = chat_identifier.map_or(String::new(), |id| format!("WHERE chat_identifier = '{}'", id));
+        db.prepare(&format!("SELECT * from {CHAT} {chat_filter}"))
             .map_err(TableError::Chat)
     }
 
