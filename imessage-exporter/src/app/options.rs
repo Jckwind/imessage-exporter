@@ -271,9 +271,9 @@ fn validate_path(
 
     // If there is an export type selected, ensure we do not overwrite files of the same type
     if let Some(_) = export_type {
-        if !resolved_path.exists() {
+        if resolved_path.exists() && !resolved_path.is_dir() {
             return Err(RuntimeError::InvalidOptions(format!(
-                "Export path {:?} does not exist", resolved_path
+                "Export path {:?} exists but is not a directory", resolved_path
             )));
         }
     }
