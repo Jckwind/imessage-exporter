@@ -15,7 +15,6 @@ fn main() {
     let args = from_command_line();
     // Create application options
     let options = Options::from_args(&args);
-
     // Create app state and start
     if let Err(why) = &options {
         eprintln!("{why}");

@@ -27,8 +27,9 @@ impl Table for ChatToHandle {
         })
     }
 
-    fn get(db: &Connection) -> Result<Statement, TableError> {
-        db.prepare(&format!("SELECT * FROM {CHAT_HANDLE_JOIN}"))
+    fn get(db: &Connection, chat_id: Option<i32>) -> Result<Statement, TableError> {
+        let chat_filter = chat_id.map_or(String::new(), |id| format!("WHERE chat_id = {}", id));
+        db.prepare(&format!("SELECT * FROM {CHAT_HANDLE_JOIN} {chat_filter}"))
             .map_err(TableError::ChatToHandle)
     }
 
@@ -59,7 +60,7 @@ impl Cacheable for ChatToHandle {
     fn cache(db: &Connection) -> Result<HashMap<Self::K, Self::V>, TableError> {
         let mut cache: HashMap<i32, BTreeSet<i32>> = HashMap::new();
 
-        let mut rows = ChatToHandle::get(db)?;
+        let mut rows = ChatToHandle::get(db, None)?;
         let mappings = rows
             .query_map([], |row| Ok(ChatToHandle::from_row(row)))
             .map_err(TableError::ChatToHandle)?;

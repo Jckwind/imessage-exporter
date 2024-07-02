@@ -169,7 +169,14 @@ impl Table for Message {
 
     /// Convert data from the messages table to native Rust data structures, falling back to
     /// more compatible queries to ensure compatibility with older database schemas
-    fn get(db: &Connection) -> Result<Statement, TableError> {
+    fn get(db: &Connection, chat_id: Option<i32>) -> Result<Statement, TableError> {
+        let chat_filter = chat_id.map_or_else(
+            || String::new(),
+            |id| format!("WHERE c.chat_id = {}", id)
+        );
+
+        println!("Chat filter: {:?}", chat_filter);
+
         // If the database has `chat_recoverable_message_join`, we can restore some deleted messages.
         // If database has `thread_originator_guid`, we can parse replies, otherwise default to 0
         Ok(db.prepare(&format!(
@@ -183,6 +190,7 @@ impl Table for Message {
              FROM
                  message as m
                  LEFT JOIN {CHAT_MESSAGE_JOIN} as c ON m.ROWID = c.message_id
+             {chat_filter}
              ORDER BY
                  m.date;
             "
@@ -197,12 +205,13 @@ impl Table for Message {
              FROM
                  message as m
                  LEFT JOIN {CHAT_MESSAGE_JOIN} as c ON m.ROWID = c.message_id
+             {chat_filter}
              ORDER BY
                  m.date;
             "
         )))
         .unwrap_or(db.prepare(&format!(
-            // macOS Catalina, iOS 13 and older 
+            // macOS Catalina, iOS 13 and older
             "SELECT
                  *,
                  c.chat_id,
@@ -212,6 +221,7 @@ impl Table for Message {
              FROM
                  message as m
                  LEFT JOIN {CHAT_MESSAGE_JOIN} as c ON m.ROWID = c.message_id
+             {chat_filter}
              ORDER BY
                  m.date;
             "
@@ -336,13 +346,13 @@ impl Cacheable for Message {
 
         // Create query, independent of table schema
         let statement = db.prepare(&format!(
-            "SELECT 
-                 *, 
-                 c.chat_id, 
+            "SELECT
+                 *,
+                 c.chat_id,
                  (SELECT COUNT(*) FROM {MESSAGE_ATTACHMENT_JOIN} a WHERE m.ROWID = a.message_id) as num_attachments,
                  (SELECT COUNT(*) FROM {MESSAGE} m2 WHERE m2.thread_originator_guid = m.guid) as num_replies
-             FROM 
-                 message as m 
+             FROM
+                 message as m
                  LEFT JOIN {CHAT_MESSAGE_JOIN} as c ON m.ROWID = c.message_id
              WHERE m.associated_message_guid NOT NULL
             "
@@ -617,16 +627,34 @@ impl Message {
     /// let context = QueryContext::default();
     /// Message::get_count(&conn, &context);
     /// ```
-    pub fn get_count(db: &Connection, context: &QueryContext) -> Result<u64, TableError> {
+    pub fn get_count(
+        db: &Connection,
+        context: &QueryContext,
+        chat_id: Option<i32>
+    ) -> Result<u64, TableError> {
         let mut statement = if context.has_filters() {
+            let mut filters = context.generate_filter_statement("m.date");
+            if let Some(id) = chat_id {
+                if !filters.is_empty() {
+                    filters.push_str(" AND ");
+                } else {
+                    filters.push_str(" WHERE ");
+            }
+                filters.push_str(&format!("c.chat_id = {}", id));
+            }
             db.prepare(&format!(
-                "SELECT COUNT(*) FROM {MESSAGE} as m {}",
-                context.generate_filter_statement("m.date")
+                "SELECT COUNT(*) FROM {MESSAGE} as m LEFT JOIN {CHAT_MESSAGE_JOIN} as c ON m.ROWID = c.message_id {}",
+                filters
             ))
             .map_err(TableError::Messages)?
         } else {
-            db.prepare(&format!("SELECT COUNT(*) FROM {MESSAGE}"))
-                .map_err(TableError::Messages)?
+            if let Some(id) = chat_id {
+                db.prepare(&format!("SELECT COUNT(*) FROM {CHAT_MESSAGE_JOIN} WHERE chat_id = {}", id))
+                    .map_err(TableError::Messages)?
+            } else {
+                db.prepare(&format!("SELECT COUNT(*) FROM {MESSAGE}"))
+                    .map_err(TableError::Messages)?
+            }
         };
         // Execute query to build the Handles
         let count: u64 = statement.query_row([], |r| r.get(0)).unwrap_or(0);
@@ -651,12 +679,23 @@ impl Message {
     pub fn stream_rows<'a>(
         db: &'a Connection,
         context: &'a QueryContext,
+        chat_id: Option<i32>,
     ) -> Result<Statement<'a>, TableError> {
         if !context.has_filters() {
-            return Self::get(db);
+            return Self::get(db, chat_id);
         }
 
-        let filters = context.generate_filter_statement("m.date");
+        let mut filters = context.generate_filter_statement("m.date");
+        if let Some(id) = chat_id {
+            if !filters.is_empty() {
+                filters.push_str(" AND ");
+            } else {
+                filters.push_str(" WHERE ");
+            }
+            filters.push_str(&format!("c.chat_id = {}", id));
+        }
+
+        println!("Filters: {:?}", filters);
 
         // If database has `thread_originator_guid`, we can parse replies, otherwise default to 0
         Ok(db.prepare(&format!(
@@ -728,16 +767,16 @@ impl Message {
             let filter: Vec<String> = rxs.iter().map(|guid| format!("\"{guid}\"")).collect();
             // Create query
             let mut statement = db.prepare(&format!(
-                "SELECT 
-                        *, 
-                        c.chat_id, 
+                "SELECT
+                        *,
+                        c.chat_id,
                         (SELECT COUNT(*) FROM {MESSAGE_ATTACHMENT_JOIN} a WHERE m.ROWID = a.message_id) as num_attachments,
                         (SELECT COUNT(*) FROM {MESSAGE} m2 WHERE m2.thread_originator_guid = m.guid) as num_replies
-                    FROM 
-                        message as m 
+                    FROM
+                        message as m
                         LEFT JOIN {CHAT_MESSAGE_JOIN} as c ON m.ROWID = c.message_id
                     WHERE m.guid IN ({})
-                    ORDER BY 
+                    ORDER BY
                         m.date;
                     ",
                 filter.join(",")
@@ -770,16 +809,16 @@ impl Message {
         // No need to hit the DB if we know we don't have replies
         if self.has_replies() {
             let mut statement = db.prepare(&format!(
-                "SELECT 
-                     *, 
-                     c.chat_id, 
+                "SELECT
+                     *,
+                     c.chat_id,
                      (SELECT COUNT(*) FROM {MESSAGE_ATTACHMENT_JOIN} a WHERE m.ROWID = a.message_id) as num_attachments,
                      (SELECT COUNT(*) FROM {MESSAGE} m2 WHERE m2.thread_originator_guid = m.guid) as num_replies
-                 FROM 
-                     message as m 
-                     LEFT JOIN {CHAT_MESSAGE_JOIN} as c ON m.ROWID = c.message_id 
+                 FROM
+                     message as m
+                     LEFT JOIN {CHAT_MESSAGE_JOIN} as c ON m.ROWID = c.message_id
                  WHERE m.thread_originator_guid = \"{}\"
-                 ORDER BY 
+                 ORDER BY
                      m.date;
                 ", self.guid
             ))

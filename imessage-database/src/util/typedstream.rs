@@ -176,31 +176,6 @@ impl<'a> TypedStreamReader<'a> {
         }
     }
 
-    // TODO: Remove
-    fn emit_objects_table(&self) {
-        println!("Start types table");
-        self.types_table
-            .iter()
-            .enumerate()
-            .for_each(|(idx, types)| println!("\t{idx}: {types:?}"));
-        println!("End types table");
-        println!("Start objects table");
-        self.object_table
-            .iter()
-            .enumerate()
-            .for_each(|(idx, obj)| println!("\t{idx}: {obj:?}"));
-        println!("End objects table");
-    }
-
-    // TODO: Remove
-    fn print_loc(&self, name: &str) {
-        println!(
-            "{name}: {:x}: {:x}",
-            self.idx,
-            self.get_current_byte().unwrap()
-        );
-    }
-
     /// Read a signed integer from the stream. Because we don't know the size of the integer ahead of time,
     /// we store it in the largest possible value.
     fn read_signed_int(&mut self) -> Result<i64, TypedStreamError> {

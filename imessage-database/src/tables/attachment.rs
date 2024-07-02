@@ -80,7 +80,7 @@ impl Table for Attachment {
         })
     }
 
-    fn get(db: &Connection) -> Result<Statement, TableError> {
+    fn get(db: &Connection, _chat_id: Option<i32>) -> Result<Statement, TableError> {
         db.prepare(&format!("SELECT * from {ATTACHMENT}"))
             .map_err(TableError::Attachment)
     }
@@ -101,7 +101,7 @@ impl Attachment {
             let mut statement = db
                 .prepare(&format!(
                     "
-                    SELECT * FROM message_attachment_join j 
+                    SELECT * FROM message_attachment_join j
                         LEFT JOIN attachment AS a ON j.attachment_id = a.ROWID
                     WHERE j.message_id = {}
                     ",

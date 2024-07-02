@@ -18,17 +18,19 @@ pub enum RuntimeError {
     DiskError(IoError),
     DatabaseError(TableError),
     NotEnoughAvailableSpace(u64, u64),
+    ChatIdNotFound(String),
 }
 
 impl Display for RuntimeError {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
         match self {
+            RuntimeError::ChatIdNotFound(chat_id) => write!(fmt, "Chat ID not found: {}", chat_id),
             RuntimeError::InvalidOptions(why) => write!(fmt, "Invalid options!\n{why}"),
             RuntimeError::DiskError(why) => write!(fmt, "{why}"),
             RuntimeError::DatabaseError(why) => write!(fmt, "{why}"),
             RuntimeError::NotEnoughAvailableSpace(estimated_bytes, available_bytes) => {
                 write!(
-                    fmt, 
+                    fmt,
                     "Not enough free disk space!\nEstimated export size: {}\nDisk space available: {}\nPass `--{}` to ignore\n",
                     format_file_size(*estimated_bytes),
                     format_file_size(*available_bytes),

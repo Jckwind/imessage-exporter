@@ -54,6 +54,8 @@ pub struct Config {
     pub db: Connection,
     /// Converter type used when converting image files
     pub converter: Option<Converter>,
+    /// Chat ID to export a single conversation
+    pub chat_id: Option<i32>,
 }
 
 impl Config {
@@ -204,6 +206,12 @@ impl Config {
         eprintln!("[4/4] Caching reactions...");
         let reactions = Message::cache(&conn).map_err(RuntimeError::DatabaseError)?;
         eprintln!("Cache built!");
+        let chat_id = options.chat_id;
+        if let Some(chat_id) = chat_id {
+            if !chatrooms.contains_key(&chat_id) {
+                return Err(RuntimeError::ChatIdNotFound(chat_id.to_string()));
+            }
+        }
         Ok(Config {
             chatrooms,
             real_chatrooms: ChatToHandle::dedupe(&chatroom_participants),
@@ -215,6 +223,7 @@ impl Config {
             offset: get_offset(),
             db: conn,
             converter: Converter::determine(),
+            chat_id,
         })
     }
 
@@ -389,6 +398,7 @@ mod filename_tests {
             use_caller_id: false,
             platform: Platform::macOS,
             ignore_disk_space: false,
+            chat_id: None,
         }
     }
 
@@ -414,6 +424,7 @@ mod filename_tests {
             offset: 0,
             db: connection,
             converter: Some(crate::app::converter::Converter::Sips),
+            chat_id: options.chat_id,
         }
     }
 
@@ -620,6 +631,7 @@ mod who_tests {
             use_caller_id: false,
             platform: Platform::macOS,
             ignore_disk_space: false,
+            chat_id: None,
         }
     }
 
@@ -645,6 +657,7 @@ mod who_tests {
             offset: 0,
             db: connection,
             converter: Some(crate::app::converter::Converter::Sips),
+            chat_id: options.chat_id,
         }
     }
 
@@ -872,6 +885,7 @@ mod directory_tests {
             use_caller_id: false,
             platform: Platform::macOS,
             ignore_disk_space: false,
+            chat_id: None,
         }
     }
 
@@ -888,6 +902,7 @@ mod directory_tests {
             offset: 0,
             db: connection,
             converter: Some(crate::app::converter::Converter::Sips),
+            chat_id: options.chat_id,
         }
     }
 

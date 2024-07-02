@@ -70,7 +70,7 @@ impl<'a> Exporter<'a> for HTML<'a> {
 
     fn iter_messages(&mut self) -> Result<(), RuntimeError> {
         // Tell the user what we are doing
-        eprintln!(
+        println!(
             "Exporting to {} as html...",
             self.config.options.export_path.display()
         );
@@ -78,24 +78,26 @@ impl<'a> Exporter<'a> for HTML<'a> {
         // Write orphaned file headers
         HTML::write_headers(&mut self.orphaned)?;
 
+        let chat_id = self.config.chat_id;
+
         // Keep track of current message ROWID
         let mut current_message_row = -1;
 
         // Set up progress bar
         let mut current_message = 0;
         let total_messages =
-            Message::get_count(&self.config.db, &self.config.options.query_context)
+            Message::get_count(&self.config.db, &self.config.options.query_context, chat_id)
                 .map_err(RuntimeError::DatabaseError)?;
+        println!("Total messages: {}", total_messages);
         let pb = build_progress_bar_export(total_messages);
 
         let mut statement =
-            Message::stream_rows(&self.config.db, &self.config.options.query_context)
+            Message::stream_rows(&self.config.db, &self.config.options.query_context, chat_id)
                 .map_err(RuntimeError::DatabaseError)?;
 
         let messages = statement
             .query_map([], |row| Ok(Message::from_row(row)))
             .map_err(|err| RuntimeError::DatabaseError(TableError::Messages(err)))?;
-
         for message in messages {
             let mut msg = Message::extract(message).map_err(RuntimeError::DatabaseError)?;
 
@@ -2346,12 +2348,12 @@ mod balloon_format_tests {
             url: Some("?messageType=1&interfaceVersion=1&sendDate=1697316869.688709"),
             title: None,
             subtitle: None,
-            caption: Some("Check In: Timer Started"),
+            caption: Some("Check\u{a0}In: Timer Started"),
             subcaption: None,
             trailing_caption: None,
             trailing_subcaption: None,
-            app_name: Some("Check In"),
-            ldtext: Some("Check In: Timer Started"),
+            app_name: Some("Check\u{a0}In"),
+            ldtext: Some("Check\u{a0}In: Timer Started"),
         };
 
         let expected = exporter.format_check_in(&balloon, &blank());
@@ -2375,12 +2377,12 @@ mod balloon_format_tests {
             url: Some("?messageType=1&interfaceVersion=1&sendDate=1697316869.688709"),
             title: None,
             subtitle: None,
-            caption: Some("Check In: Has not checked in when expected, location shared"),
+            caption: Some("Check\u{a0}In: Has not checked in when expected, location shared"),
             subcaption: None,
             trailing_caption: None,
             trailing_subcaption: None,
-            app_name: Some("Check In"),
-            ldtext: Some("Check In: Has not checked in when expected, location shared"),
+            app_name: Some("Check\u{a0}In"),
+            ldtext: Some("Check\u{a0}In: Has not checked in when expected, location shared"),
         };
 
         let expected = exporter.format_check_in(&balloon, &blank());
@@ -2404,12 +2406,12 @@ mod balloon_format_tests {
             url: Some("?messageType=1&interfaceVersion=1&sendDate=1697316869.688709"),
             title: None,
             subtitle: None,
-            caption: Some("Check In: Fake Location"),
+            caption: Some("Check\u{a0}In: Fake Location"),
             subcaption: None,
             trailing_caption: None,
             trailing_subcaption: None,
-            app_name: Some("Check In"),
-            ldtext: Some("Check In: Fake Location"),
+            app_name: Some("Check\u{a0}In"),
+            ldtext: Some("Check\u{a0}In: Fake Location"),
         };
 
         let expected = exporter.format_check_in(&balloon, &blank());

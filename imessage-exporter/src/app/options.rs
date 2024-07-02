@@ -32,6 +32,7 @@ pub const OPTION_CUSTOM_NAME: &str = "custom-name";
 pub const OPTION_PLATFORM: &str = "platform";
 pub const OPTION_BYPASS_FREE_SPACE_CHECK: &str = "ignore-disk-warning";
 pub const OPTION_USE_CALLER_ID: &str = "use-caller-id";
+pub const OPTION_CHAT_ID: &str = "chat-id";
 
 // Other CLI Text
 pub const SUPPORTED_FILE_TYPES: &str = "txt, html";
@@ -69,6 +70,8 @@ pub struct Options {
     pub platform: Platform,
     /// If true, disable the free disk space check
     pub ignore_disk_space: bool,
+    /// Chat ID to export a single conversation
+    pub chat_id: Option<i32>,
 }
 
 impl Options {
@@ -86,6 +89,10 @@ impl Options {
         let use_caller_id = args.get_flag(OPTION_USE_CALLER_ID);
         let platform_type: Option<&String> = args.get_one(OPTION_PLATFORM);
         let ignore_disk_space = args.get_flag(OPTION_BYPASS_FREE_SPACE_CHECK);
+        let chat_id: Option<i32> = args.get_one(OPTION_CHAT_ID).map(|s: &String| s.parse::<i32>().unwrap_or_else(|_| {
+            eprintln!("Invalid chat ID provided. Using default (all chats).");
+            -1
+        }));
 
         // Build the export type
         let export_type: Option<ExportType> = match export_file_type {
@@ -241,6 +248,7 @@ impl Options {
             use_caller_id,
             platform,
             ignore_disk_space,
+            chat_id,
         })
     }
 
@@ -410,6 +418,14 @@ fn get_command() -> Command {
                 .action(ArgAction::SetTrue)
                 .display_order(12)
         )
+        .arg(
+            Arg::new(OPTION_CHAT_ID)
+                .short('c')
+                .long(OPTION_CHAT_ID)
+                .help("Specify a chat ID to export a single conversation")
+                .value_name("CHAT_ID")
+                .display_order(13)
+        )
 }
 
 /// Parse arguments from the command line
@@ -455,6 +471,7 @@ mod arg_tests {
             use_caller_id: false,
             platform: Platform::default(),
             ignore_disk_space: false,
+            chat_id: None,
         };
 
         assert_eq!(actual, expected);
@@ -566,6 +583,7 @@ mod arg_tests {
             use_caller_id: false,
             platform: Platform::default(),
             ignore_disk_space: false,
+            chat_id: None,
         };
 
         assert_eq!(actual, expected);
@@ -598,6 +616,7 @@ mod arg_tests {
             use_caller_id: false,
             platform: Platform::default(),
             ignore_disk_space: false,
+            chat_id: None,
         };
 
         assert_eq!(actual, expected);
@@ -718,6 +737,7 @@ mod arg_tests {
             use_caller_id: false,
             platform: Platform::default(),
             ignore_disk_space: false,
+            chat_id: None,
         };
 
         assert_eq!(actual, expected);
@@ -747,6 +767,7 @@ mod arg_tests {
             use_caller_id: true,
             platform: Platform::default(),
             ignore_disk_space: false,
+            chat_id: None,
         };
 
         assert_eq!(actual, expected);

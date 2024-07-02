@@ -32,7 +32,7 @@ impl Table for Chat {
         })
     }
 
-    fn get(db: &Connection) -> Result<Statement, TableError> {
+    fn get(db: &Connection, _chat_id: Option<i32>) -> Result<Statement, TableError> {
         db.prepare(&format!("SELECT * from {CHAT}"))
             .map_err(TableError::Chat)
     }
@@ -67,7 +67,7 @@ impl Cacheable for Chat {
     fn cache(db: &Connection) -> Result<HashMap<Self::K, Self::V>, TableError> {
         let mut map = HashMap::new();
 
-        let mut statement = Chat::get(db)?;
+        let mut statement = Chat::get(db, None)?;
 
         let chats = statement
             .query_map([], |row| Ok(Chat::from_row(row)))

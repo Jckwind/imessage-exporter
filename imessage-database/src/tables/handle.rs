@@ -28,8 +28,9 @@ impl Table for Handle {
         })
     }
 
-    fn get(db: &Connection) -> Result<Statement, TableError> {
-        db.prepare(&format!("SELECT * from {HANDLE}"))
+    fn get(db: &Connection, chat_id: Option<i32>) -> Result<Statement, TableError> {
+        let chat_filter = chat_id.map_or(String::new(), |id| format!("WHERE chat_id = {}", id));
+        db.prepare(&format!("SELECT * from {HANDLE} {chat_filter}"))
             .map_err(TableError::Handle)
     }
 
@@ -65,7 +66,7 @@ impl Cacheable for Handle {
         map.insert(0, ME.to_string());
 
         // Create query
-        let mut statement = Handle::get(db)?;
+        let mut statement = Handle::get(db, None)?;
 
         // Execute query to build the Handles
         let handles = statement
